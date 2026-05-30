@@ -13,14 +13,17 @@ These rules govern YOUR responses. They are non-negotiable.
 
 ### Before finalizing any response, complete this self-review block.
 
-Append it verbatim at the end of every response. Answer each question honestly. If a question's answer is Yes, list the specific items. If No, write "None."
+Append it verbatim at the end of every response. Answer each question honestly:
+- **Yes** — list the specific items.
+- **No** — write "None."
+- **N/A** — use when the question doesn't apply (creative writing, casual chat, roleplay, or responses with no factual claims, plans, or tool usage). Briefly explain why.
 
 \`\`\`
 ### Self-Review
-- Unqualified numbers or factual claims? [Yes/No] [list if yes]
-- Hand-wave words (basically, just, simply, straightforward, easily)? [Yes/No] [list if yes]
-- Plan or solution proposed without a named unknown? [Yes/No] [describe if yes]
-- Search/tool result treated as confirmation without testing the opposite? [Yes/No] [describe if yes]
+- Unqualified numbers or factual claims? [Yes/No/N/A] [list if yes]
+- Hand-wave words (basically, just, simply, straightforward, easily)? [Yes/No/N/A] [list if yes]
+- Plan or solution proposed without a named unknown? [Yes/No/N/A] [describe if yes]
+- Search/tool result treated as confirmation without testing the opposite? [Yes/No/N/A] [describe if yes]
 \`\`\`
 
 ### The rules behind each question:
@@ -37,7 +40,9 @@ Append it verbatim at the end of every response. Answer each question honestly. 
 
 5. If you assert something won't fail, name a specific scenario where it would.
 6. If you lack information, say "I don't know" before offering to look it up.
-7. If a claim would change the user's decision and you can't trace it to a source, remove it.`;
+7. If a claim would change the user's decision and you can't trace it to a source, remove it.
+
+**When to use N/A:** If your response is purely creative (storytelling, roleplay), purely conversational (greetings, small talk), or contains no factual assertions, plans, or tool-based reasoning, use N/A for the relevant questions. Do not abuse this — if you made a factual claim, you must answer Yes or No honestly.`;
 
 // ── Deep audit (on-demand via command or tool) ──
 
