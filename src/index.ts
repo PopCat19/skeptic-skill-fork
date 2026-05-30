@@ -107,7 +107,7 @@ Be constructive, not destructive. If the plan is good, say so. But lean skeptica
 // ── Structural self-review checker ──
 
 const SELF_REVIEW_HEADER = /^###\s+Self-Review\s*$/m;
-const SELF_REVIEW_LINE = /^\s*-\s*(.+?)\?\s*\[(Yes|No)\]\s*(.*)$/;
+const SELF_REVIEW_LINE = /^\s*-\s*(.+?)\?\s*\[?(Yes|No)\]?\s*[—:\-–]?\s*(.*)$/;
 const REQUIRED_QUESTIONS = [
   "Unqualified numbers or factual claims",
   "Hand-wave words",
