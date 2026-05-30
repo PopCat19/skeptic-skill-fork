@@ -101,12 +101,78 @@ Be constructive, not destructive. If the plan is good, say so. But lean skeptica
 
 // ── Extension ──
 
+// ── Violation scanner ──
+
+const HAND_WAVE_WORDS = /\b(basically|essentially|just|simply|straightforward|easily)\b/gi;
+
+// Match numbers followed by unit-like words (pages, lines, KB, ms, etc.)
+// that are not inside code blocks and not preceded by qualification phrases.
+const UNQUALIFIED_NUMBER_PATTERN =
+  /(?<!`[^`]{0,50})(?<![\w-])(\d+(?:,\d{3})*(?:\.\d+)?)\s*(pages|lines|years|months|weeks|days|hours|minutes|KB|MB|GB|TB|ms|μs|ns|fps|Hz|kHz|MHz|GHz)\b(?!.*`)/gi;
+
+const SELF_UNQUALIFYING_PREFIX =
+  /\b(I believe|From memory|Untested assumption|I recall|I have not verified|I think|roughly|approximately|about|around|~|rough)\b/i;
+
+function scanResponse(text: string) {
+  // Strip code blocks to avoid flagging numbers in code
+  const withoutCode = text.replace(/```[\s\S]*?```/g, "");
+
+  // Strip inline code
+  const cleaned = withoutCode.replace(/`[^`]+`/g, "");
+
+  const violations: string[] = [];
+
+  // Check for hand-wave words
+  const handWaves = cleaned.match(HAND_WAVE_WORDS);
+  if (handWaves && handWaves.length > 0) {
+    violations.push(`Hand-wave words: ${[...new Set(handWaves.map(w => w.toLowerCase()))].join(", ")}`);
+  }
+
+  // Check for unqualified numbers with units
+  const numberMatches = [...cleaned.matchAll(UNQUALIFIED_NUMBER_PATTERN)];
+  for (const match of numberMatches) {
+    const fullMatch = match[0];
+    const prefix = cleaned.substring(Math.max(0, match.index! - 40), match.index!);
+    if (!SELF_UNQUALIFYING_PREFIX.test(prefix)) {
+      violations.push(`Unqualified factual number: "${fullMatch}"`);
+    }
+  }
+
+  return violations;
+}
+
 export default function (pi: ExtensionAPI) {
   // Always-on: inject baseline discipline into every turn
   pi.on("before_agent_start", async (event, _ctx) => {
     return {
       systemPrompt: (event.systemPrompt ?? "") + BASELINE,
     };
+  });
+
+  // Post-hoc enforcement: scan responses for violations
+  pi.on("turn_end", async (event, _ctx) => {
+    const msg = event.message;
+    if (!msg || msg.role !== "assistant") return;
+
+    const text = typeof msg.content === "string"
+      ? msg.content
+      : Array.isArray(msg.content)
+        ? msg.content.filter((b: any) => b.type === "text").map((b: any) => b.text).join("\n")
+        : "";
+
+    if (!text) return;
+
+    const violations = scanResponse(text);
+    if (violations.length === 0) return;
+
+    const report = violations.length <= 3
+      ? violations.map(v => `  - ${v}`).join("\n")
+      : violations.slice(0, 3).map(v => `  - ${v}`).join("\n") + `\n  ... and ${violations.length - 3} more`;
+
+    pi.sendUserMessage(
+      `[Skeptic] Your last response had ${violations.length} violation(s):\n${report}\n\nAddress each one. If a number or claim is from a source you read this session, cite it. If not, qualify it or remove it.`,
+      { deliverAs: "steer" }
+    );
   });
 
   // On-demand: register /skeptic command for deep audits
