@@ -1,6 +1,6 @@
 // pi-skeptic
 // Always-on skeptical thinking discipline + deep audit command.
-// Counters AI agreeableness bias. One artifact, no dupes.
+// Structural enforcement: agent self-reviews, extension verifies the review happened.
 
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
@@ -9,30 +9,35 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 const BASELINE = `
 ## Hard Skeptic Discipline
 
-These rules govern YOUR responses. They are non-negotiable. Apply them inward — to your own reasoning and output — before you apply them to the user's ideas.
+These rules govern YOUR responses. They are non-negotiable.
 
-### Before emitting any response, scan it against these rules:
+### Before finalizing any response, complete this self-review block.
 
-1. **No unqualified factual claims.** Every factual statement you make must either (a) come from a tool output you just read, (b) be common knowledge a beginner would know, or (c) be prefixed with a qualifier: "I believe", "From memory", "Untested assumption", "I recall reading that", "I have not verified but". If you cannot source a number, line count, spec page count, or historical claim, qualify it or cut it. Stating a number without provenance is a violation.
+Append it verbatim at the end of every response. Answer each question honestly. If a question's answer is Yes, list the specific items. If No, write "None."
 
-2. **Every plan must have a labelled unknown.** If you propose a course of action and none of the steps is labelled "[Unknown: X]", you are hand-waving. Find at least one real unknown and name it.
+\`\`\`
+### Self-Review
+- Unqualified numbers or factual claims? [Yes/No] [list if yes]
+- Hand-wave words (basically, just, simply, straightforward, easily)? [Yes/No] [list if yes]
+- Plan or solution proposed without a named unknown? [Yes/No] [describe if yes]
+- Search/tool result treated as confirmation without testing the opposite? [Yes/No] [describe if yes]
+\`\`\`
 
-3. **Tool outputs are adversarial evidence, not confirmation.** A search result or file read that matches your hypothesis proves nothing — you chose the query. Before treating output as evidence, ask: what query would test the opposite hypothesis? If you don't run that query, state that you haven't.
+### The rules behind each question:
 
-4. **No hand-waves in your own output.** Before finalizing, search for these phrases in your response: "basically", "essentially", "just", "simply", "straightforward", "easily", "the library handles", "we can figure out". For each hit, ask: is the thing this describes actually simple, or am I glossing over complexity I don't understand? If the latter, replace with a specific description of what is unknown.
+1. **Unqualified claims.** Every factual statement must be (a) from a tool output you just read, (b) common knowledge, or (c) prefixed with a qualifier: "I believe", "From memory", "Untested assumption", "I have not verified but". Numbers with units (pages, lines, KB, ms, days) require sourcing. The user's own words repeated back to them are not claims — they are references to the conversation. Do not flag user-supplied numbers as violations.
 
-5. **Concrete counterexample or no claim.** If you assert something won't fail or will work, you must state at least one specific, realistic scenario where it would fail. If you cannot, your confidence is unjustified. Say so.
+2. **Hand-wave words.** Scan for: basically, essentially, just, simply, straightforward, easily. If you used any of these to describe something complex, list it.
 
-6. **"I don't know" before filler.** When you lack information to answer a question correctly, say "I don't know" in your first sentence. Then offer to look it up. Never lead with a plausible-sounding answer that you haven't verified.
+3. **Labelled unknowns.** If you proposed a solution without naming a concrete unknown, list what you glossed over.
 
-7. **Provenance or silence.** If a factual claim in your response would change the user's decision and you cannot trace it to a specific source (tool output, known standard, documentation you've read this session), remove it. Grammar and paragraph structure do not make a claim true.
+4. **Adversarial tool reading.** If you treated a search result or file read as confirmation of your hypothesis without testing the opposite framing, describe what alternative query you should have run.
 
-### Self-check (mandatory, run mentally before finalizing every response):
-- Did I state any number, date, line count, or page count without qualifying its source?
-- Did I use "basically", "just", "simply", or "essentially" to describe something complex?
-- Did I assert a plan will work without naming a specific failure scenario?
-- Did I present a search result as confirmation without testing the opposite query?
-If yes to any, revise before emitting.`;
+### Additional rules (apply during composition, not checked by the block):
+
+5. If you assert something won't fail, name a specific scenario where it would.
+6. If you lack information, say "I don't know" before offering to look it up.
+7. If a claim would change the user's decision and you can't trace it to a source, remove it.`;
 
 // ── Deep audit (on-demand via command or tool) ──
 
@@ -99,42 +104,57 @@ Watch for: "It's basically just…", "We can always add that later", "It should 
 
 Be constructive, not destructive. If the plan is good, say so. But lean skeptical — the rest of the ecosystem leans optimistic.`;
 
-// ── Extension ──
+// ── Structural self-review checker ──
 
-// ── Violation scanner ──
+const SELF_REVIEW_HEADER = /^###\s+Self-Review\s*$/m;
+const SELF_REVIEW_LINE = /^\s*-\s*(.+?)\?\s*\[(Yes|No)\]\s*(.*)$/;
+const REQUIRED_QUESTIONS = [
+  "Unqualified numbers or factual claims",
+  "Hand-wave words",
+  "Plan or solution proposed without a named unknown",
+  "Search/tool result treated as confirmation",
+];
 
-const HAND_WAVE_WORDS = /\b(basically|essentially|just|simply|straightforward|easily)\b/gi;
-
-// Match numbers followed by unit-like words (pages, lines, KB, ms, etc.)
-// that are not inside code blocks and not preceded by qualification phrases.
-const UNQUALIFIED_NUMBER_PATTERN =
-  /(?<!`[^`]{0,50})(?<![\w-])(\d+(?:,\d{3})*(?:\.\d+)?)\s*(pages|lines|years|months|weeks|days|hours|minutes|KB|MB|GB|TB|ms|μs|ns|fps|Hz|kHz|MHz|GHz)\b(?!.*`)/gi;
-
-const SELF_UNQUALIFYING_PREFIX =
-  /\b(I believe|From memory|Untested assumption|I recall|I have not verified|I think|roughly|approximately|about|around|~|rough)\b/i;
-
-function scanResponse(text: string) {
-  // Strip code blocks to avoid flagging numbers in code
-  const withoutCode = text.replace(/```[\s\S]*?```/g, "");
-
-  // Strip inline code
-  const cleaned = withoutCode.replace(/`[^`]+`/g, "");
-
+function checkSelfReview(text: string): string[] {
   const violations: string[] = [];
 
-  // Check for hand-wave words
-  const handWaves = cleaned.match(HAND_WAVE_WORDS);
-  if (handWaves && handWaves.length > 0) {
-    violations.push(`Hand-wave words: ${[...new Set(handWaves.map(w => w.toLowerCase()))].join(", ")}`);
+  // Find the self-review block
+  const headerMatch = text.match(SELF_REVIEW_HEADER);
+  if (!headerMatch) {
+    violations.push("Missing self-review block. Append the ### Self-Review section to your response.");
+    return violations;
   }
 
-  // Check for unqualified numbers with units
-  const numberMatches = [...cleaned.matchAll(UNQUALIFIED_NUMBER_PATTERN)];
-  for (const match of numberMatches) {
-    const fullMatch = match[0];
-    const prefix = cleaned.substring(Math.max(0, match.index! - 40), match.index!);
-    if (!SELF_UNQUALIFYING_PREFIX.test(prefix)) {
-      violations.push(`Unqualified factual number: "${fullMatch}"`);
+  const afterHeader = text.substring(headerMatch.index! + headerMatch[0].length);
+  const lines = afterHeader.split("\n").filter(l => l.trim());
+
+  // Find all review lines (stop at next heading or end of text)
+  const reviewLines: string[] = [];
+  for (const line of lines) {
+    if (/^#/.test(line.trim())) break;
+    if (SELF_REVIEW_LINE.test(line)) reviewLines.push(line);
+  }
+
+  if (reviewLines.length === 0) {
+    violations.push("Self-review block found but contains no review lines. Fill in each question.");
+    return violations;
+  }
+
+  // Check each required question is present
+  for (const q of REQUIRED_QUESTIONS) {
+    const found = reviewLines.some(line => line.includes(q));
+    if (!found) {
+      violations.push(`Self-review missing question: "${q}?"`);
+    }
+  }
+
+  // Check that Yes answers have items listed
+  for (const line of reviewLines) {
+    const match = line.match(SELF_REVIEW_LINE);
+    if (!match) continue;
+    const [, _question, answer, items] = match;
+    if (answer === "Yes" && (!items || items.trim().length === 0 || items.trim() === "None")) {
+      violations.push(`Self-review answered "Yes" but listed no items: ${line.trim()}`);
     }
   }
 
@@ -149,7 +169,7 @@ export default function (pi: ExtensionAPI) {
     };
   });
 
-  // Post-hoc enforcement: scan responses for violations
+  // Structural enforcement: verify self-review block exists and is complete
   pi.on("turn_end", async (event, _ctx) => {
     const msg = event.message;
     if (!msg || msg.role !== "assistant") return;
@@ -162,15 +182,12 @@ export default function (pi: ExtensionAPI) {
 
     if (!text) return;
 
-    const violations = scanResponse(text);
+    const violations = checkSelfReview(text);
     if (violations.length === 0) return;
 
-    const report = violations.length <= 3
-      ? violations.map(v => `  - ${v}`).join("\n")
-      : violations.slice(0, 3).map(v => `  - ${v}`).join("\n") + `\n  ... and ${violations.length - 3} more`;
-
+    const report = violations.map(v => `  - ${v}`).join("\n");
     pi.sendUserMessage(
-      `[Skeptic] Your last response had ${violations.length} violation(s):\n${report}\n\nAddress each one. If a number or claim is from a source you read this session, cite it. If not, qualify it or remove it.`,
+      `[Skeptic] Self-review incomplete — ${violations.length} issue(s):\n${report}`,
       { deliverAs: "steer" }
     );
   });
