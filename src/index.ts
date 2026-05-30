@@ -109,92 +109,12 @@ Watch for: "It's basically just…", "We can always add that later", "It should 
 
 Be constructive, not destructive. If the plan is good, say so. But lean skeptical — the rest of the ecosystem leans optimistic.`;
 
-// ── Structural self-review checker ──
-
-const SELF_REVIEW_HEADER = /^###\s+Self-Review\s*$/m;
-const SELF_REVIEW_LINE = /^\s*-\s*(.+?)\?\s*\[?(Yes|No)\]?\s*[—:\-–]?\s*(.*)$/;
-const REQUIRED_QUESTIONS = [
-  "Unqualified numbers or factual claims",
-  "Hand-wave words",
-  "Plan or solution proposed without a named unknown",
-  "Search/tool result treated as confirmation",
-];
-
-function checkSelfReview(text: string): string[] {
-  const violations: string[] = [];
-
-  // Find the self-review block
-  const headerMatch = text.match(SELF_REVIEW_HEADER);
-  if (!headerMatch) {
-    violations.push("Missing self-review block. Append the ### Self-Review section to your response.");
-    return violations;
-  }
-
-  const afterHeader = text.substring(headerMatch.index! + headerMatch[0].length);
-  const lines = afterHeader.split("\n").filter(l => l.trim());
-
-  // Find all review lines (stop at next heading or end of text)
-  const reviewLines: string[] = [];
-  for (const line of lines) {
-    if (/^#/.test(line.trim())) break;
-    if (SELF_REVIEW_LINE.test(line)) reviewLines.push(line);
-  }
-
-  if (reviewLines.length === 0) {
-    violations.push("Self-review block found but contains no review lines. Fill in each question.");
-    return violations;
-  }
-
-  // Check each required question is present
-  for (const q of REQUIRED_QUESTIONS) {
-    const found = reviewLines.some(line => line.includes(q));
-    if (!found) {
-      violations.push(`Self-review missing question: "${q}?"`);
-    }
-  }
-
-  // Check that Yes answers have items listed
-  for (const line of reviewLines) {
-    const match = line.match(SELF_REVIEW_LINE);
-    if (!match) continue;
-    const [, _question, answer, items] = match;
-    if (answer === "Yes" && (!items || items.trim().length === 0 || items.trim() === "None")) {
-      violations.push(`Self-review answered "Yes" but listed no items: ${line.trim()}`);
-    }
-  }
-
-  return violations;
-}
-
 export default function (pi: ExtensionAPI) {
   // Always-on: inject baseline discipline into every turn
   pi.on("before_agent_start", async (event, _ctx) => {
     return {
       systemPrompt: (event.systemPrompt ?? "") + BASELINE,
     };
-  });
-
-  // Structural enforcement: verify self-review block exists and is complete
-  pi.on("turn_end", async (event, _ctx) => {
-    const msg = event.message;
-    if (!msg || msg.role !== "assistant") return;
-
-    const text = typeof msg.content === "string"
-      ? msg.content
-      : Array.isArray(msg.content)
-        ? msg.content.filter((b: any) => b.type === "text").map((b: any) => b.text).join("\n")
-        : "";
-
-    if (!text) return;
-
-    const violations = checkSelfReview(text);
-    if (violations.length === 0) return;
-
-    const report = violations.map(v => `  - ${v}`).join("\n");
-    pi.sendUserMessage(
-      `[Skeptic] Self-review incomplete — ${violations.length} issue(s):\n${report}`,
-      { deliverAs: "steer" }
-    );
   });
 
   // On-demand: register /skeptic command for deep audits
