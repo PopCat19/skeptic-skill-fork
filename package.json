@@ -1,0 +1,14 @@
+{
+  "name": "pi-skeptic",
+  "version": "1.0.0",
+  "description": "Always-on skeptical thinking discipline + deep audit command for pi coding agent",
+  "type": "module",
+  "pi": {
+    "extensions": [
+      "./src/index.ts"
+    ]
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-coding-agent": "*"
+  }
+}
