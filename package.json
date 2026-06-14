@@ -3,12 +3,22 @@
   "version": "1.0.0",
   "description": "Always-on skeptical thinking discipline + deep audit command for pi coding agent",
   "type": "module",
+  "scripts": {
+    "lint": "bash ./scripts/lint.sh",
+    "lint:fix": "bash ./scripts/lint-fix.sh"
+  },
   "pi": {
-    "extensions": [
-      "./src/index.ts"
-    ]
+    "extensions": ["./src/index.ts"]
   },
   "peerDependencies": {
     "@earendil-works/pi-coding-agent": "*"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.9",
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.1.0",
+    "eslint-plugin-security": "^4.0.1",
+    "typescript": "^5.4.5",
+    "typescript-eslint": "^8.57.1"
   }
 }

@@ -93,23 +93,25 @@ Watch for: "It's basically just…", "We can always add that later", "It should 
 Be constructive, not destructive. If the plan is good, say so. But lean skeptical — the rest of the ecosystem leans optimistic.`;
 
 export default function (pi: ExtensionAPI) {
-  // Always-on: inject baseline discipline into every turn
-  pi.on("before_agent_start", async (event, _ctx) => {
-    return {
-      systemPrompt: (event.systemPrompt ?? "") + BASELINE,
-    };
-  });
+	// Always-on: inject baseline discipline into every turn
+	pi.on("before_agent_start", (event, _ctx) => {
+		return {
+			systemPrompt: event.systemPrompt + BASELINE,
+		};
+	});
 
-  // On-demand: register /skeptic command for deep audits
-  pi.registerCommand("skeptic", {
-    description: "Deep skeptical audit of the current plan, idea, or proposal",
-    handler: async (_args, ctx) => {
-      await ctx.waitForIdle();
-      pi.sendUserMessage(
-        DEEP_AUDIT_PROTOCOL + "\n\nApply this protocol to the most recent plan, idea, or proposal discussed above. Deliver the full output format.",
-        { deliverAs: "followUp" }
-      );
-      ctx.ui.notify("Queued skeptic deep audit", "info");
-    },
-  });
+	// On-demand: register /skeptic command for deep audits
+	pi.registerCommand("skeptic", {
+		description: "Deep skeptical audit of the current plan, idea, or proposal",
+		handler: async (_args: string[], ctx: any) => {
+			await ctx.waitForIdle();
+			pi.sendUserMessage(
+				`${DEEP_AUDIT_PROTOCOL}
+
+Apply this protocol to the most recent plan, idea, or proposal discussed above. Deliver the full output format.`,
+				{ deliverAs: "followUp" },
+			);
+			ctx.ui.notify("Queued skeptic deep audit", "info");
+		},
+	});
 }
